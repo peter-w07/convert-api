@@ -1,0 +1,57 @@
+# Root-level docker-compose for Coolify auto-detection.
+# Coolify scans the repo for `docker-compose.yaml` / `docker-compose.yml` at
+# the root and uses that as the deploy unit.
+#
+# For local development use docker/docker-compose.{yml,override.yml} instead.
+
+services:
+  convert-api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: convert-api:latest
+    restart: unless-stopped
+    # Coolify expects a single port to publish. SERVICE_FQDN_CONVERTAPI is
+    # filled in by Coolify when you bind a domain; otherwise the container
+    # listens on $PORT internally and Coolify's proxy maps it.
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      # Server
+      PORT: 3000
+      HOST: 0.0.0.0
+      NODE_ENV: production
+      # Performance
+      CONVERT_API_MAX_CONCURRENCY: ${CONVERT_API_MAX_CONCURRENCY:-2}
+      CONVERT_API_INLINE_THRESHOLD_MS: ${CONVERT_API_INLINE_THRESHOLD_MS:-100}
+      CONVERT_API_MAX_UPLOAD_BYTES: ${CONVERT_API_MAX_UPLOAD_BYTES:-209715200}
+      CONVERT_API_WARM_BROWSER: ${CONVERT_API_WARM_BROWSER:-1}
+      # Cache
+      CONVERT_API_CACHE_DIR: /var/lib/convert-api/cache
+      CONVERT_API_CACHE_MAX_BYTES: ${CONVERT_API_CACHE_MAX_BYTES:-536870912}
+      CONVERT_API_CACHE_MAX_AGE_MS: ${CONVERT_API_CACHE_MAX_AGE_MS:-86400000}
+      # Persistent state (format snapshot, webhook subscriptions)
+      CONVERT_API_STATE_DIR: /var/lib/convert-api/state
+      # Job system
+      CONVERT_API_JOB_TTL_MS: ${CONVERT_API_JOB_TTL_MS:-3600000}
+      CONVERT_API_MAX_JOBS: ${CONVERT_API_MAX_JOBS:-5000}
+      # Rate limit (off when CONVERT_API_KEYS is empty — bucket per IP only)
+      CONVERT_API_RATE_RPM: ${CONVERT_API_RATE_RPM:-120}
+      CONVERT_API_BURST: ${CONVERT_API_BURST:-30}
+      # Optional integrations — leave blank to disable
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # Chromium uses the system binary baked into the image
+      PUPPETEER_SKIP_DOWNLOAD: "true"
+      PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium
+    volumes:
+      - convert_api_state:/var/lib/convert-api
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  convert_api_state:
