@@ -8,6 +8,7 @@
   "type": "module",
   "main": "src/electron.cjs",
   "scripts": {
+    "start": "tsx server/index.ts",
     "dev": "vite",
     "build": "tsc && vite build",
     "cache:build": "bun run buildCache.js dist/cache.json --minify",
@@ -57,14 +58,14 @@
     "@types/supertest": "^6.0.2",
     "electron": "^40.6.0",
     "electron-builder": "^26.8.1",
-    "puppeteer": "^24.36.0",
     "supertest": "^7.0.0",
-    "tsx": "^4.19.2",
     "typescript": "~5.9.3",
     "vite": "^7.2.4",
     "vite-tsconfig-paths": "^6.0.5"
   },
   "dependencies": {
+    "puppeteer": "^24.36.0",
+    "tsx": "^4.19.2",
     "7z-wasm": "^1.2.0",
     "@bjorn3/browser_wasi_shim": "^0.4.2",
     "@bokuweb/zstd-wasm": "^0.0.27",

@@ -1,4 +1,23 @@
-const { app, BrowserWindow, protocol, net, shell } = require('electron');
+// This file is the Electron desktop entry. It's only meant to run inside the
+// Electron runtime — never under bare Node. If a deployment tool (Nixpacks,
+// `node .`, etc.) tries to execute it, fail loud and direct the operator to
+// the actual server entry point instead of crashing on the missing `protocol`.
+let electron;
+try {
+  electron = require('electron');
+} catch {
+  electron = null;
+}
+if (!electron || typeof electron === 'string' || !electron.protocol) {
+  console.error(
+    '[convert-api] src/electron.cjs was launched outside of Electron.\n' +
+    '  This is the desktop app entry, not the REST API server.\n' +
+    "  Run the server with: npm start  (or: npx tsx server/index.ts)\n" +
+    '  If you saw this from Coolify, set the build pack to "Docker Compose".'
+  );
+  process.exit(1);
+}
+const { app, BrowserWindow, protocol, net, shell } = electron;
 const { URL, pathToFileURL } = require('node:url');
 const path = require('path');
 

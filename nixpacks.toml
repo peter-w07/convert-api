@@ -1,0 +1,32 @@
+# Nixpacks build configuration.
+#
+# This file is here as a safety net. The recommended Coolify build pack for
+# this project is **Docker Compose** (uses `docker-compose.yaml` at the root),
+# which pulls in the multi-stage `docker/Dockerfile` with Chromium + ffmpeg +
+# tesseract + yt-dlp baked in.
+#
+# If Coolify (or any other Nixpacks-based runner) auto-detects this as a Node
+# app and ignores the Dockerfile, this file makes sure:
+#   - Chromium is installed for Puppeteer
+#   - All deps are installed (including tsx)
+#   - `npm start` is the entry, not `node .` (which would hit the Electron file)
+#
+# Note: Nixpacks path won't include yt-dlp or Tesseract — for the full
+# capability set, use the Docker Compose pack.
+
+[phases.setup]
+nixPkgs = ["nodejs_22", "chromium", "ffmpeg"]
+
+[phases.install]
+cmds = ["npm install --no-audit --no-fund"]
+
+[phases.build]
+cmds = []
+
+[start]
+cmd = "npm start"
+
+[variables]
+PUPPETEER_SKIP_DOWNLOAD = "true"
+PUPPETEER_EXECUTABLE_PATH = "/root/.nix-profile/bin/chromium"
+NODE_ENV = "production"
