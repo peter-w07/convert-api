@@ -13,12 +13,14 @@ import { ocrRouter } from "./routes/ocr.ts";
 import { transcribeRouter } from "./routes/transcribe.ts";
 import { jobsRouter } from "./routes/jobs.ts";
 import { metricsRouter } from "./routes/metrics.ts";
+import { discordRouter } from "./routes/discord.ts";
 import { docsRouter } from "./openapi.ts";
 import { ApiError } from "./lib/errors.ts";
 import { closeBrowser, warmBrowser } from "./lib/browser.ts";
 import { authMiddleware } from "./lib/auth.ts";
 import { metricsMiddleware } from "./lib/metrics.ts";
 import { log } from "./lib/log.ts";
+import { discordBot } from "./lib/discordBot.ts";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -50,6 +52,7 @@ app.use(ocrRouter);
 app.use(transcribeRouter);
 app.use(jobsRouter);
 app.use(metricsRouter);
+app.use(discordRouter);
 app.use(docsRouter);
 
 // Serve the static browser converter (used by /api/convert browser fallback).
@@ -85,6 +88,8 @@ const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   res.status(500).json({ error: msg });
 };
 app.use(errorHandler);
+
+void discordBot.start();
 
 const server = app.listen(PORT, HOST, () => {
   log.info(`convert-api listening on http://${HOST}:${PORT}`);
