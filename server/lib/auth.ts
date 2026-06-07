@@ -3,6 +3,9 @@
  *
  * Configure via env:
  *   CONVERT_API_KEYS      comma-separated allowed keys (if empty: auth disabled)
+ *
+ * Clients should prefer the x-api-key header. Browser-only consoles may use
+ * ?apiKey=... / ?api_key=... so their same-origin fetches can authenticate.
  *   CONVERT_API_RATE_RPM  per-key requests per minute (default 60)
  *   CONVERT_API_BURST     burst size (default 20)
  */
@@ -60,7 +63,8 @@ export function authMiddleware() {
     const openPaths = ["/health", "/metrics", "/openapi.json", "/openapi.yaml"];
     if (openPaths.includes(req.path) || req.path.startsWith("/docs")) return next();
 
-    const key = (req.header("x-api-key") || "").trim();
+    const queryKey = typeof req.query.apiKey === "string" ? req.query.apiKey : typeof req.query.api_key === "string" ? req.query.api_key : "";
+    const key = (req.header("x-api-key") || queryKey || "").trim();
     if (allowedKeys.size > 0) {
       if (!key) {
         res.status(401).json({ error: "Missing x-api-key header" });

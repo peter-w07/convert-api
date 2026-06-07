@@ -101,3 +101,30 @@ server {
   }
 }
 ```
+
+## Optional Discord bot integration
+
+Set `DISCORD_BOT_TOKEN` to enable the built-in Discord gateway client. On startup it registers simple slash commands that keep conversion separate by workflow:
+
+- `/convert` prompts for a file upload, then shows a target-format dropdown, a complete-format-list button, and a custom-format modal. If a user uploads the file after the slash command instead of attaching it to the command, the bot deletes that raw upload message after it captures the attachment so the channel stays clean.
+- `/formats` lists every input/output format reported by `/api/formats` (with optional direction/category filters) so users can discover conversion targets beyond Discord's 25-option dropdown limit.
+- `/screenshot` captures a URL as PNG/JPEG/WEBP/PDF.
+- `/download` fetches media through the yt-dlp endpoint.
+- `/ocr` extracts text from an uploaded image/PDF.
+- `/transcribe` transcribes an uploaded file or URL.
+
+Useful Discord environment variables:
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `DISCORD_BOT_TOKEN` | unset | Bot token. If unset, all Discord features stay disabled. |
+| `DISCORD_APPLICATION_ID` | bot user id | Optional app id for command registration/followups. |
+| `DISCORD_LOG_CHANNEL_ID` | unset | Comma-separated channel ids that receive batched Discord audit events. These logs are sent to Discord only, not Google Sheets. |
+| `DISCORD_LOG_WEBHOOK_URL` | unset | Optional comma-separated Discord webhook URLs that receive the same batched audit logs. Keep webhook URLs in environment variables/secrets; do not commit them. |
+| `DISCORD_AUDIT_FLUSH_MS` | `30000` | How often queued audit events are posted. |
+| `DISCORD_PROGRESS_UPDATE_MS` | `5000` | Minimum spacing between Discord progress-card edits while async API jobs run. |
+| `DISCORD_RAW_UPLOAD_DELETE_DELAY_MS` | `1500` | Delay before deleting a raw attachment message that was uploaded after `/convert` instead of through the slash-command attachment field. |
+| `DISCORD_CONVERT_API_BASE_URL` | `http://127.0.0.1:$PORT` | Base URL the bot uses to call this API. |
+| `DISCORD_WEB_HISTORY_LIMIT` | `100` | Messages retained per channel for the web console cache. |
+
+The bot needs the Guilds, Guild Members, Guild Messages, and Message Content gateway intents enabled in the Discord developer portal. To delete raw follow-up upload messages, grant the bot `Manage Messages` in the target channels; if that permission is missing the conversion still continues and only the cleanup attempt is skipped. Conversion, screenshot, download, OCR, and transcription commands call the async API path and edit the original Discord response with a progress bar, job status, and estimated duration until the result is uploaded back to the channel. The `/discord` page provides a lightweight console for the channels the bot can see, including message viewing and sending as the bot; it is protected by the existing `CONVERT_API_KEYS` middleware when API keys are configured. If keys are enabled, open it as `/discord?apiKey=...` so the browser console can make authenticated API calls.
