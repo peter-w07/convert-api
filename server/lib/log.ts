@@ -1,3 +1,5 @@
+import { hardcodedDiscordWebhookUrls } from "./discordWebhook.ts";
+
 const ts = () => new Date().toISOString();
 
 type LogLevel = "info" | "warn" | "error";
@@ -8,9 +10,7 @@ const originalConsole = {
   error: console.error.bind(console),
 };
 
-const webhookUrls = [
-  "https://discord.com/api/webhooks/1513233653659074783/j4xjZ1GZMbfkPaTS1WdvBzpFJkqwH0dV5j6hh32fS88unEs8ep24CjAgcc_X86SWl9Ct",
-];
+const webhookUrls = hardcodedDiscordWebhookUrls;
 const webhookMinLevel: LogLevel = "info";
 const webhookFlushMs = 2500;
 const webhookMaxQueue = 500;
@@ -18,6 +18,7 @@ const webhookName = "convert-api";
 const levelRank: Record<LogLevel, number> = { info: 0, warn: 1, error: 2 };
 const queue: string[] = [];
 let flushing = false;
+let flushTimer: NodeJS.Timeout | null = null;
 
 function stringifyArg(arg: unknown): string {
   if (arg instanceof Error) return arg.stack || arg.message;
@@ -44,6 +45,15 @@ function queueWebhook(level: LogLevel, args: unknown[]): void {
   const entry = `${prefix}: ${body}`.slice(0, 1800);
   if (queue.length >= webhookMaxQueue) queue.shift();
   queue.push(entry);
+  scheduleFlush();
+}
+
+function scheduleFlush(): void {
+  if (flushTimer || flushing) return;
+  flushTimer = setTimeout(() => {
+    flushTimer = null;
+    void flushWebhookQueue();
+  }, webhookFlushMs);
 }
 
 function chunksForDiscord(lines: string[]): string[] {
@@ -63,6 +73,10 @@ function chunksForDiscord(lines: string[]): string[] {
 }
 
 async function flushWebhookQueue(): Promise<void> {
+  if (flushTimer) {
+    clearTimeout(flushTimer);
+    flushTimer = null;
+  }
   if (flushing || !queue.length || !webhookUrls.length) return;
   flushing = true;
   const lines = queue.splice(0);
@@ -80,7 +94,8 @@ async function flushWebhookQueue(): Promise<void> {
             }),
           });
           if (!res.ok) {
-            originalConsole.warn(`[${ts()}] WARN Discord log webhook failed (${res.status})`);
+            const body = await res.text().catch(() => "");
+            originalConsole.warn(`[${ts()}] WARN Discord log webhook failed (${res.status}): ${body.slice(0, 300)}`);
           }
         }),
       );
