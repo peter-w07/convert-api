@@ -3,6 +3,13 @@ import { log } from "./log.ts";
 
 let browserPromise: Promise<Browser> | null = null;
 
+const defaultBrowserTimeoutMs = Math.max(1_000, Number(process.env.CONVERT_API_BROWSER_TIMEOUT_MS) || 180_000);
+const defaultViewport = {
+  width: Math.max(320, Number(process.env.CONVERT_API_BROWSER_WIDTH) || 1366),
+  height: Math.max(240, Number(process.env.CONVERT_API_BROWSER_HEIGHT) || 900),
+  deviceScaleFactor: 1,
+};
+
 /** Lazy singleton Puppeteer browser. Honors PUPPETEER_EXECUTABLE_PATH. */
 export function getBrowser(): Promise<Browser> {
   if (!browserPromise) {
@@ -15,6 +22,8 @@ export function getBrowser(): Promise<Browser> {
       "--disable-gpu",
       "--hide-scrollbars",
       "--mute-audio",
+      "--autoplay-policy=no-user-gesture-required",
+      `--window-size=${defaultViewport.width},${defaultViewport.height}`,
     ];
     if (process.env.CONVERT_API_IGNORE_CERT_ERRORS === "1" || process.env.NODE_ENV !== "production") {
       baseArgs.push("--ignore-certificate-errors");
@@ -23,6 +32,8 @@ export function getBrowser(): Promise<Browser> {
       .launch({
         headless: true,
         executablePath: execPath || undefined,
+        defaultViewport,
+        protocolTimeout: defaultBrowserTimeoutMs,
         acceptInsecureCerts: process.env.CONVERT_API_IGNORE_CERT_ERRORS === "1",
         args: baseArgs,
       })
@@ -62,8 +73,9 @@ export async function closeBrowser(): Promise<void> {
 export async function withPage<T>(fn: (page: Page) => Promise<T>, opts: { timeoutMs?: number } = {}): Promise<T> {
   const browser = await getBrowser();
   const page = await browser.newPage();
-  if (opts.timeoutMs) page.setDefaultNavigationTimeout(opts.timeoutMs);
-  const deadlineMs = opts.timeoutMs ?? 180_000;
+  const deadlineMs = opts.timeoutMs ?? defaultBrowserTimeoutMs;
+  page.setDefaultTimeout(deadlineMs);
+  page.setDefaultNavigationTimeout(deadlineMs);
   let timer: NodeJS.Timeout | null = null;
   try {
     const work = fn(page);

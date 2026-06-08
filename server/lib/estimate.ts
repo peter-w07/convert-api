@@ -9,7 +9,7 @@
 import { isYouTubeUrl } from "./youtube.ts";
 
 export interface EstimateInputs {
-  kind: "screenshot" | "sharp" | "browserConvert" | "ytdlp" | "ocr" | "transcribe" | "batch";
+  kind: "screenshot" | "sharp" | "mediaPdf" | "browserConvert" | "ytdlp" | "ocr" | "transcribe" | "batch";
   bytes?: number;
   url?: string;
   to?: string;
@@ -36,6 +36,13 @@ export function estimateMs(inp: EstimateInputs): number {
       if (inp.url && isYouTubeUrl(inp.url)) base = 6_000;
       if (inp.to === "pdf") base += 1_000;
       return base;
+    }
+    case "mediaPdf": {
+      const sz = inp.bytes ?? 5 * MB;
+      if (sz <= 2 * MB) return 2_000;
+      if (sz <= 25 * MB) return 8_000;
+      if (sz <= 100 * MB) return 20_000;
+      return 45_000;
     }
     case "browserConvert": {
       // Driving the existing WASM converter is slow on first hit (cache build).

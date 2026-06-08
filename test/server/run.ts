@@ -30,6 +30,7 @@ import { isYouTubeUrl, youtubeVideoId } from "../../server/lib/youtube.ts";
 import { assertSafeUrl, sanitizeFilename } from "../../server/lib/download.ts";
 import { convertImage, normalizeSharpFormat } from "../../server/lib/sharpConvert.ts";
 import { getJobWithBytes, jobs, spawnJob, waitForJob } from "../../server/lib/jobs.ts";
+import { ffmpegAvailable } from "../../server/lib/mediaPdf.ts";
 
 interface TestCase {
   name: string;
@@ -392,6 +393,20 @@ async function run(): Promise<void> {
         const size = await imageSize(new Uint8Array(await r.arrayBuffer()));
         eq(size.width, 16, "width");
         eq(size.height, 16, "height");
+      },
+    },
+    {
+      name: "POST /api/convert (file PNG -> PDF) via native PDF wrapper",
+      run: async () => {
+        const png = await makeFixturePng();
+        const form = new FormData();
+        form.set("file", new Blob([new Uint8Array(png)], { type: "image/png" }), "fixture.png");
+        form.set("to", "pdf");
+        const r = await inlineOrJob(await fetch(`${baseUrl}/api/convert?nocache=true`, { method: "POST", body: form }));
+        eq(r.status, 200, "status");
+        eq(r.headers.get("content-type"), "application/pdf", "content-type");
+        const u = new Uint8Array(await r.arrayBuffer());
+        eq(new TextDecoder().decode(u.slice(0, 4)), "%PDF", "pdf magic");
       },
     },
     {
@@ -818,6 +833,24 @@ async function run(): Promise<void> {
   const exampleReachable = await probe("https://example.com");
   const wikimediaReachable = await probe("https://upload.wikimedia.org/");
   const brokenHttpsFallbackReachable = await probe("http://goole.com");
+  if (await ffmpegAvailable()) {
+    cases.push({
+      name: "POST /api/convert (file MP4 -> PDF) via native poster frame",
+      run: async () => {
+        const mp4 = await readFile(resolve(process.cwd(), "test", "resources", "doom.mp4"));
+        const form = new FormData();
+        form.set("file", new Blob([new Uint8Array(mp4)], { type: "video/mp4" }), "doom.mp4");
+        form.set("to", "pdf");
+        const r = await inlineOrJob(await fetch(`${baseUrl}/api/convert?nocache=true`, { method: "POST", body: form }));
+        eq(r.status, 200, "status");
+        eq(r.headers.get("content-type"), "application/pdf", "content-type");
+        const u = new Uint8Array(await r.arrayBuffer());
+        eq(new TextDecoder().decode(u.slice(0, 4)), "%PDF", "pdf magic");
+      },
+    });
+  } else {
+    results.push({ name: "POST /api/convert (file MP4 -> PDF) via native poster frame", status: "skip", message: "ffmpeg not installed" });
+  }
   if (wikimediaReachable) {
     cases.push({
       name: "POST /api/convert (image URL → WEBP) downloads then transcodes via sharp",

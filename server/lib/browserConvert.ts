@@ -13,6 +13,10 @@ import { log } from "./log.ts";
 
 const __filename = fileURLToPath(import.meta.url);
 const distDir = resolve(__filename, "../../../dist");
+const defaultConvertTimeoutMs = Math.max(
+  1_000,
+  Number(process.env.CONVERT_API_BROWSER_CONVERT_TIMEOUT_MS || process.env.CONVERT_API_BROWSER_TIMEOUT_MS) || 180_000,
+);
 
 export interface BrowserConvertOptions {
   /** Input file bytes. */
@@ -55,9 +59,10 @@ export async function convertViaBrowser(opts: BrowserConvertOptions): Promise<Br
   return withBrowserSlot(async () => {
     return withPage(
       async (page) => {
-        const timeoutMs = opts.timeoutMs ?? 180_000;
+        const timeoutMs = opts.timeoutMs ?? defaultConvertTimeoutMs;
         page.setDefaultTimeout(timeoutMs);
         page.setDefaultNavigationTimeout(timeoutMs);
+        await page.setViewport({ width: 1366, height: 900, deviceScaleFactor: 1 });
 
         page.on("console", (msg) => log.info(`[browser:${msg.type()}]`, msg.text()));
 
@@ -123,7 +128,7 @@ export async function convertViaBrowser(opts: BrowserConvertOptions): Promise<Br
         // We chunk the base64 encoding inside the page so big outputs don't trigger the O(n²)
         // string-concat trap.
         const collected = await page.evaluate(
-          () =>
+          (pageSideTimeoutMs: number) =>
             new Promise<{ name: string; chunks: string[] } | null>((res) => {
               const origClick = HTMLAnchorElement.prototype.click;
               HTMLAnchorElement.prototype.click = function () {
@@ -151,8 +156,9 @@ export async function convertViaBrowser(opts: BrowserConvertOptions): Promise<Br
               };
               (document.getElementById("convert-button") as HTMLButtonElement).click();
               // Page-side safety timeout (Node-side deadline in withPage is the real backstop).
-              setTimeout(() => res(null), 170_000);
+              setTimeout(() => res(null), pageSideTimeoutMs);
             }),
+          Math.max(1_000, timeoutMs - 10_000),
         );
 
         if (!collected) throw serverError("Conversion produced no output (or timed out)");
@@ -168,7 +174,7 @@ export async function convertViaBrowser(opts: BrowserConvertOptions): Promise<Br
           path: [opts.from ?? "auto", opts.to],
         };
       },
-      { timeoutMs: opts.timeoutMs ?? 180_000 },
+      { timeoutMs: opts.timeoutMs ?? defaultConvertTimeoutMs },
     );
   });
 }

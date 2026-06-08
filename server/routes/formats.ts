@@ -47,7 +47,7 @@ const NATIVE_FORMATS: CachedFormat[] = [
   { name: "TIFF", format: "tiff", extension: "tiff", mime: "image/tiff", from: true, to: true, category: "image" },
   { name: "GIF", format: "gif", extension: "gif", mime: "image/gif", from: true, to: true, category: "image" },
   { name: "HEIF/HEIC", format: "heif", extension: "heic", mime: "image/heif", from: true, to: true, category: "image" },
-  { name: "Portable Document Format (screenshot only)", format: "pdf", extension: "pdf", mime: "application/pdf", from: false, to: true, category: "document" },
+  { name: "Portable Document Format", format: "pdf", extension: "pdf", mime: "application/pdf", from: false, to: true, category: "document" },
   { name: "Webpage (screenshot input)", format: "html", extension: "html", mime: "text/html", from: true, to: false, category: "web" },
 ];
 

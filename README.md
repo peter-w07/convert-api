@@ -134,7 +134,8 @@ Conversion strategy (first hit wins):
 
 1. **URL + image/PDF target → screenshot**. Detects YouTube and renders the player frame; pass `youtubeThumbnail=true` to grab the thumbnail directly.
 2. **Image → image** uses [`sharp`](https://sharp.pixelplumbing.com/) for PNG/JPEG/WEBP/AVIF/TIFF/GIF/HEIF.
-3. **Anything else** drives the existing browser-based converter via Puppeteer (requires `bun run build` first).
+3. **Image/video file -> PDF** uses a native PDF wrapper. Videos become a one-page poster-frame PDF and require `ffmpeg` (included in the Docker image).
+4. **Anything else** drives the existing browser-based converter via Puppeteer (requires `bun run build` first).
 
 ## Configuration
 
@@ -146,7 +147,11 @@ Conversion strategy (first hit wins):
 | `CONVERT_API_INTERNAL_BASE_URL` | auto-detected | override the API origin used by the server-side browser; leave unset normally |
 | `CONVERT_API_MAX_CONCURRENCY` | `2` | concurrent browser-driven jobs |
 | `CONVERT_API_MAX_UPLOAD_BYTES` | `209715200` | multer upload limit |
+| `CONVERT_API_BROWSER_TIMEOUT_MS` | `180000` | default Puppeteer page/protocol deadline |
+| `CONVERT_API_BROWSER_CONVERT_TIMEOUT_MS` | browser timeout | browser-converter deadline override |
+| `CONVERT_API_BROWSER_WIDTH` / `CONVERT_API_BROWSER_HEIGHT` | `1366` / `900` | headless Chromium viewport/window size |
 | `CONVERT_API_IGNORE_CERT_ERRORS` | `0` | pass `--ignore-certificate-errors` + `acceptInsecureCerts` (dev only) |
+| `FFMPEG_BIN` | `ffmpeg` | ffmpeg binary used for video poster-frame PDF output |
 | `NODE_ENV` | — | non-`production` also enables cert ignore for dev convenience |
 
 ## Tests

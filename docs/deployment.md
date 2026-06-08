@@ -57,9 +57,13 @@ These power specific endpoints; the server starts without them and reports their
 | `CONVERT_API_STATE_DIR` | `/tmp/convert-api-state` | format snapshot + webhooks storage |
 | `CONVERT_API_BATCH_MAX_ITEMS` | `32` | max items per batch request |
 | `CONVERT_API_WARM_BROWSER` | `1` | pre-launch Chromium on startup |
+| `CONVERT_API_BROWSER_TIMEOUT_MS` | `180000` | default Puppeteer page/protocol deadline |
+| `CONVERT_API_BROWSER_CONVERT_TIMEOUT_MS` | browser timeout | browser-converter deadline override |
+| `CONVERT_API_BROWSER_WIDTH` / `CONVERT_API_BROWSER_HEIGHT` | `1366` / `900` | headless Chromium viewport/window size |
 | `CONVERT_API_IGNORE_CERT_ERRORS` | `0` | pass `--ignore-certificate-errors` (dev) |
 | `CONVERT_API_RATE_RPM` | `60` | per-key rate-limit (requests/minute) |
 | `CONVERT_API_BURST` | `20` | rate-limit burst size |
+| `FFMPEG_BIN` | `ffmpeg` | path to ffmpeg binary for video poster-frame PDF output |
 | `YTDLP_BIN` | `yt-dlp` | path to yt-dlp binary |
 | `TESSERACT_BIN` | `tesseract` | path to tesseract binary |
 | `WHISPER_BIN` | `whisper` | path to whisper CLI |

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import { log } from "./log.ts";
+import { hardcodedDiscordWebhookUrls } from "./discordWebhook.ts";
 
 const DISCORD_API = "https://discord.com/api/v10";
 const GATEWAY_VERSION = 10;
@@ -245,7 +246,7 @@ export class DiscordBot {
   private applicationId = process.env.DISCORD_APPLICATION_ID || "";
   private commandGuildId = process.env.DISCORD_GUILD_ID || "";
   private auditChannelIds = commaList(process.env.DISCORD_AUDIT_CHANNEL_IDS || process.env.DISCORD_AUDIT_CHANNEL_ID);
-  private auditWebhookUrls = commaList(process.env.DISCORD_AUDIT_WEBHOOK_URLS || process.env.DISCORD_AUDIT_WEBHOOK_URL);
+  private auditWebhookUrls = hardcodedDiscordWebhookUrls;
 
   private ws?: WebSocket;
   private heartbeatTimer?: ReturnType<typeof setInterval>;

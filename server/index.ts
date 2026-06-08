@@ -145,6 +145,7 @@ async function shutdown(signal: string) {
   await closeHttpServer();
   await discordBot.stop();
   await closeBrowser();
+  await log.flush();
   process.exit(0);
 }
 process.on("SIGTERM", () => void shutdown("SIGTERM"));
