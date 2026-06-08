@@ -82,6 +82,8 @@ Multipart **or** JSON body. One of `file` (multipart) or `url` (JSON/form) requi
 | `file` | upload | up to `CONVERT_API_MAX_UPLOAD_BYTES` (default 200MB) |
 | `url` | string | remote file or webpage |
 
+Uploaded image files can be converted directly to a one-page PDF. Uploaded video files can also target `pdf`; the server extracts a poster frame with `ffmpeg` and wraps it in a PDF, avoiding the browser-converter graph timeout path.
+
 ```bash
 # Local file → WebP via sharp fast-path
 curl -X POST 'http://localhost:3000/api/convert?sync=true' \

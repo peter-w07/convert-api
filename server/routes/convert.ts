@@ -5,6 +5,7 @@ import { downloadUrl, assertSafeUrl } from "../lib/download.ts";
 import { captureUrl, type ScreenshotFormat } from "../lib/screenshot.ts";
 import { convertImage, normalizeSharpFormat } from "../lib/sharpConvert.ts";
 import { convertViaBrowser, isBrowserConverterAvailable } from "../lib/browserConvert.ts";
+import { classifyPdfInput, convertMediaToPdf } from "../lib/mediaPdf.ts";
 import { isYouTubeUrl } from "../lib/youtube.ts";
 import { badRequest, unsupported, ApiError } from "../lib/errors.ts";
 import { log } from "../lib/log.ts";
@@ -242,6 +243,28 @@ async function planConversion(inputs: ConvertInputs, baseUrl: string): Promise<C
   const sharpFrom = fromExt ? normalizeSharpFormat(fromExt) : null;
   const sharpTo = normalizeSharpFormat(inputs.to);
 
+  if (!hasTransformOptions(inputs) && fromExt && sameFormat(fromExt, inputs.to)) {
+    return {
+      kind: "passthrough",
+      estimateInputs: { kind: "sharp", bytes: captured.byteLength },
+      cacheParams: {
+        hash: hashBytes(captured),
+        to: inputs.to,
+        from: fromExt,
+        fileName: capturedName,
+      },
+      publicInput: { fileName: capturedName, to: inputs.to, from: fromExt, bytes: captured.byteLength },
+      run: async (setProgress) => {
+        setProgress(0.9);
+        return {
+          bytes: captured,
+          contentType: detectedMime || mime.getType(inputs.to) || "application/octet-stream",
+          fileName: capturedName,
+        };
+      },
+    };
+  }
+
   if (sharpFrom && sharpTo) {
     return {
       kind: "sharp",
@@ -272,6 +295,35 @@ async function planConversion(inputs: ConvertInputs, baseUrl: string): Promise<C
         };
       },
     };
+  }
+
+  if (inputs.to === "pdf") {
+    const pdfInputKind = classifyPdfInput(capturedName, detectedMime, fromExt);
+    if (pdfInputKind) {
+      return {
+        kind: pdfInputKind === "video" ? "videoPdf" : "imagePdf",
+        estimateInputs: { kind: "mediaPdf", bytes: captured.byteLength },
+        cacheParams: {
+          hash: hashBytes(captured),
+          to: "pdf",
+          from: fromExt,
+          fileName: capturedName,
+        },
+        publicInput: { fileName: capturedName, to: "pdf", from: fromExt, bytes: captured.byteLength },
+        run: async (setProgress, signal) => {
+          setProgress(0.25);
+          const result = await convertMediaToPdf({
+            bytes: captured,
+            fileName: capturedName,
+            fileExt: fromExt,
+            inputKind: pdfInputKind,
+            signal,
+          });
+          setProgress(0.9);
+          return result;
+        },
+      };
+    }
   }
 
   // Browser-driven fallback.
@@ -315,6 +367,14 @@ async function runActualConvert(
 ): Promise<JobResult> {
   const sharpFrom = fromExt ? normalizeSharpFormat(fromExt) : null;
   const sharpTo = normalizeSharpFormat(inputs.to);
+  if (!hasTransformOptions(inputs) && fromExt && sameFormat(fromExt, inputs.to)) {
+    setProgress(0.9);
+    return {
+      bytes,
+      contentType: mime.getType(inputs.to) || "application/octet-stream",
+      fileName,
+    };
+  }
   if (sharpFrom && sharpTo) {
     setProgress(0.6);
     const result = await convertImage({
@@ -330,6 +390,19 @@ async function runActualConvert(
         contentType: result.contentType,
         fileName: `converted.${result.extension}`,
       };
+    }
+  }
+  if (inputs.to === "pdf") {
+    const pdfInputKind = classifyPdfInput(fileName, undefined, fromExt);
+    if (pdfInputKind) {
+      setProgress(0.65);
+      return convertMediaToPdf({
+        bytes,
+        fileName,
+        fileExt: fromExt,
+        inputKind: pdfInputKind,
+        signal: _signal,
+      });
     }
   }
   if (!isBrowserConverterAvailable()) {
@@ -379,6 +452,28 @@ function extOf(name?: string, mimeType?: string): string | undefined {
     if (e) return e.toLowerCase();
   }
   return undefined;
+}
+
+function sameFormat(from: string, to: string): boolean {
+  return canonicalExt(from) === canonicalExt(to);
+}
+
+function hasTransformOptions(inputs: Pick<ConvertInputs, "width" | "height" | "quality">): boolean {
+  return inputs.width !== undefined || inputs.height !== undefined || inputs.quality !== undefined;
+}
+
+function canonicalExt(ext: string): string {
+  const lower = ext.toLowerCase().replace(/^\./, "");
+  const aliases: Record<string, string> = {
+    jpg: "jpeg",
+    jpeg: "jpeg",
+    tif: "tiff",
+    tiff: "tiff",
+    htm: "html",
+    html: "html",
+    m4v: "mp4",
+  };
+  return aliases[lower] || lower;
 }
 
 import { createHash } from "node:crypto";

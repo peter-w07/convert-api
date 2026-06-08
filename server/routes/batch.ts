@@ -1,10 +1,12 @@
 import { Router, type Request } from "express";
 import multer from "multer";
 import JSZip from "jszip";
+import mime from "mime";
 import { assertSafeUrl, downloadUrl } from "../lib/download.ts";
 import { captureUrl, type ScreenshotFormat } from "../lib/screenshot.ts";
 import { convertImage, normalizeSharpFormat } from "../lib/sharpConvert.ts";
 import { convertViaBrowser, isBrowserConverterAvailable } from "../lib/browserConvert.ts";
+import { classifyPdfInput, convertMediaToPdf } from "../lib/mediaPdf.ts";
 import { isYouTubeUrl } from "../lib/youtube.ts";
 import { badRequest, ApiError } from "../lib/errors.ts";
 import { log } from "../lib/log.ts";
@@ -149,15 +151,26 @@ async function runOne(it: BatchItem, files: Express.Multer.File[], baseUrl: stri
   // Otherwise download/use the file then sharp.
   let bytes: Uint8Array;
   let name: string;
+  let contentType: string | undefined;
   if (it.url) {
     const dl = await downloadUrl(it.url, { signal });
     bytes = dl.bytes;
     name = dl.fileName;
+    contentType = dl.contentType ?? undefined;
   } else {
     const file = files[it.fileIndex ?? 0];
     if (!file) throw badRequest(`Batch item references missing file index ${it.fileIndex}`);
     bytes = new Uint8Array(file.buffer);
     name = file.originalname;
+    contentType = file.mimetype || undefined;
+  }
+  const fromExt = it.from || extOf(name, contentType);
+  if (!hasTransformOptions(it) && fromExt && sameFormat(fromExt, it.to)) {
+    return {
+      bytes,
+      contentType: contentType || mimeTypeFor(it.to),
+      fileName: name,
+    };
   }
   const sharpTo = normalizeSharpFormat(it.to);
   if (sharpTo) {
@@ -171,10 +184,22 @@ async function runOne(it: BatchItem, files: Express.Multer.File[], baseUrl: stri
       // The input is not Sharp-compatible; let the full converter graph try it.
     }
   }
+  if (it.to === "pdf") {
+    const pdfInputKind = classifyPdfInput(name, contentType, fromExt);
+    if (pdfInputKind) {
+      return convertMediaToPdf({
+        bytes,
+        fileName: name,
+        fileExt: fromExt,
+        inputKind: pdfInputKind,
+        signal,
+      });
+    }
+  }
   if (!isBrowserConverterAvailable()) {
     throw new ApiError(415, `No native fast-path for '${it.to}' and the browser converter is not built`);
   }
-  const result = await convertViaBrowser({ bytes, fileName: name, to: it.to, from: it.from, baseUrl });
+  const result = await convertViaBrowser({ bytes, fileName: name, to: it.to, from: fromExt, baseUrl });
   return { bytes: result.bytes, contentType: result.contentType, fileName: result.fileName };
 }
 
@@ -230,6 +255,65 @@ function isLikelyFileUrl(rawUrl: string): boolean {
   } catch {
     return false;
   }
+}
+
+function extOf(name?: string, mimeType?: string): string | undefined {
+  if (name) {
+    const dot = name.lastIndexOf(".");
+    const e = dot >= 0 ? name.slice(dot + 1) : "";
+    if (e && e.length <= 8) return e.toLowerCase();
+  }
+  if (mimeType) {
+    const e = mime.getExtension(mimeType.split(";")[0].trim());
+    if (e) return e.toLowerCase();
+  }
+  return undefined;
+}
+
+function sameFormat(from: string, to: string): boolean {
+  return canonicalExt(from) === canonicalExt(to);
+}
+
+function hasTransformOptions(item: Pick<BatchItem, "width" | "height" | "quality">): boolean {
+  return item.width !== undefined || item.height !== undefined || item.quality !== undefined;
+}
+
+function canonicalExt(ext: string): string {
+  const lower = ext.toLowerCase().replace(/^\./, "");
+  const aliases: Record<string, string> = {
+    jpg: "jpeg",
+    jpeg: "jpeg",
+    tif: "tiff",
+    tiff: "tiff",
+    htm: "html",
+    html: "html",
+    m4v: "mp4",
+  };
+  return aliases[lower] || lower;
+}
+
+function mimeTypeFor(extOrMime: string): string {
+  const value = extOrMime.toLowerCase().split(";")[0].trim();
+  if (value.includes("/")) return value;
+  const detected = mime.getType(value);
+  if (detected) return detected;
+  const map: Record<string, string> = {
+    png: "image/png",
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    webp: "image/webp",
+    gif: "image/gif",
+    pdf: "application/pdf",
+    mp3: "audio/mpeg",
+    mp4: "video/mp4",
+    webm: "video/webm",
+    mov: "video/quicktime",
+    wav: "audio/wav",
+    txt: "text/plain",
+    html: "text/html",
+    json: "application/json",
+  };
+  return map[value] || "application/octet-stream";
 }
 
 log.info(`Batch endpoint loaded (max items: ${MAX_BATCH})`);
